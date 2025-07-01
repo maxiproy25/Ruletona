@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Predictor de Ruleta Argentina - Aprendizaje Continuo</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* Todos los estilos CSS anteriores aquí */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        :root {
+            --primary: #1a2a6c;
+            --secondary: #b21f1f;
+            --accent: #FFD700;
+            --dark: #0d0d0d;
+            --light: #f5f5f5;
+            --success: #4CAF50;
+            --warning: #FFC107;
+            --danger: #F44336;
+        }
+        
+        /* ... resto de estilos ... */
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Contenido HTML anterior aquí -->
+        <header>
+            <h1><i class="fas fa-dice"></i> Predictor de Ruleta Argentina</h1>
+            <p>Sistema de aprendizaje continuo basado en tus datos</p>
+        </header>
+        
+        <div class="input-section">
+            <input type="number" min="0" max="36" placeholder="Ingresa un número (0-36)" id="number-input">
+            <button class="btn" id="add-btn"><i class="fas fa-plus"></i> Agregar número</button>
+            <button class="btn btn-success" id="predict-btn"><i class="fas fa-crystal-ball"></i> Predecir próximo</button>
+        </div>
+        
+        <!-- ... resto del HTML ... -->
+    </div>
+
+    <div class="notification" id="notification">
+        <i class="fas fa-check-circle"></i>
+        <span id="notification-text">Operación completada</span>
+    </div>
+
+    <script>
+        // CÓDIGO JAVASCRIPT MEJORADO
+        const appData = {
+            history: [],
+            predictions: [],
+            sequences: {},
+            currentPrediction: null,
+            accuracyHistory: []
+        };
+        
+        const elements = {
+            // ... elementos del DOM ...
+        };
+
+        // Inicialización
+        function initApp() {
+            loadData();
+            setupEventListeners();
+            updateUI();
+            initChart();
+            initTabs();
+        }
+
+        // Cargar datos
+        function loadData() {
+            const savedData = localStorage.getItem('ruletaData');
+            if (savedData) {
+                Object.assign(appData, JSON.parse(savedData));
+            }
+        }
+
+        // Guardar datos
+        function saveData() {
+            localStorage.setItem('ruletaData', JSON.stringify(appData));
+        }
+
+        // Agregar número
+        function addNumber() {
+            const number = parseInt(elements.numberInput.value);
+            if (isNaN(number) || number < 0 || number > 36) {
+                showNotification('Número inválido (0-36)', true);
+                return;
+            }
+            
+            appData.history.push(number);
+            updateSequences(number);
+            saveData();
+            updateUI();
+            showNotification(`Número ${number} agregado`);
+            elements.numberInput.value = '';
+        }
+
+        // Actualizar secuencias
+        function updateSequences(newNumber) {
+            const history = appData.history;
+            if (history.length < 2) return;
+            
+            for (let seqLength = 2; seqLength <= 5; seqLength++) {
+                if (history.length >= seqLength) {
+                    const start = history.length - seqLength;
+                    const sequence = history.slice(start, history.length - 1).join(',');
+                    const next = newNumber;
+                    
+                    if (!appData.sequences[sequence]) {
+                        appData.sequences[sequence] = {};
+                    }
+                    
+                    appData.sequences[sequence][next] = (appData.sequences[sequence][next] || 0) + 1;
+                }
+            }
+        }
+
+        // Predecir número
+        function predictNext() {
+            if (appData.history.length < 5) {
+                showNotification('Necesitas mínimo 5 números', true);
+                return;
+            }
+            
+            const history = appData.history;
+            let prediction = null;
+            let confidence = 0;
+            
+            // Buscar en secuencias de mayor a menor longitud
+            for (let seqLength = 5; seqLength >= 2; seqLength--) {
+                if (history.length >= seqLength) {
+                    const sequence = history.slice(-seqLength).join(',');
+                    
+                    if (appData.sequences[sequence]) {
+                        const possibleNumbers = Object.entries(appData.sequences[sequence]);
+                        if (possibleNumbers.length > 0) {
+                            // Encontrar el número con más ocurrencias
+                            possibleNumbers.sort((a, b) => b[1] - a[1]);
+                            prediction = parseInt(possibleNumbers[0][0]);
+                            confidence = Math.min(0.95, possibleNumbers[0][1] / 10);
+                            break;
+                        }
+                    }
+                }
+            }
+            
+            // Si no se encontró en secuencias, usar número más frecuente
+            if (!prediction) {
+                prediction = getMostFrequentNumber();
+                confidence = 0.4;
+            }
+            
+            // Guardar predicción temporal
+            appData.currentPrediction = {
+                predicted: prediction,
+                confidence: confidence,
+                timestamp: new Date().toISOString()
+            };
+            
+            // Mostrar resultado
+            elements.predictionNumber.textContent = prediction;
+            elements.confidence.textContent = `Confianza: ${Math.round(confidence * 100)}%`;
+            showNotification(`Predicción: ${prediction}`);
+        }
+
+        // Obtener número más frecuente
+        function getMostFrequentNumber() {
+            const counts = {};
+            appData.history.forEach(num => counts[num] = (counts[num] || 0) + 1);
+            return parseInt(Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0]);
+        }
+
+        // Procesar feedback
+        function processFeedback() {
+            const actual = parseInt(elements.actualInput.value);
+            if (isNaN(actual) || actual < 0 || actual > 36) {
+                showNotification('Número inválido (0-36)', true);
+                return;
+            }
+            
+            // Agregar número real al historial
+            appData.history.push(actual);
+            updateSequences(actual);
+            
+            // Registrar resultado de predicción
+            if (appData.currentPrediction) {
+                const prediction = appData.currentPrediction;
+                prediction.actual = actual;
+                prediction.isCorrect = (prediction.predicted === actual);
+                appData.predictions.push(prediction);
+                appData.currentPrediction = null;
+                updateAccuracy();
+            }
+            
+            saveData();
+            updateUI();
+            showNotification(`Aprendiendo de ${actual}`);
+            elements.actualInput.value = '';
+        }
+
+        // Actualizar precisión
+        function updateAccuracy() {
+            if (appData.predictions.length === 0) return;
+            
+            const lastPrediction = appData.predictions[appData.predictions.length - 1];
+            appData.accuracyHistory.push(lastPrediction.isCorrect ? 1 : 0);
+            
+            // Mantener solo últimos 20 registros
+            if (appData.accuracyHistory.length > 20) {
+                appData.accuracyHistory.shift();
+            }
+        }
+
+        // ... resto de funciones (updateUI, showNotification, etc.) ...
+
+        // Inicializar la app al cargar
+        document.addEventListener('DOMContentLoaded', initApp);
+    </script>
+</body>
+</html>
